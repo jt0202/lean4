@@ -1558,6 +1558,144 @@ theorem DistinctKeys.filterMap [BEq α] [PartialEquivBEq α] {l : List ((a : α)
   apply Sublist.map
   exact filter_sublist l
 
+theorem containsKey_filterMap [BEq α] [PartialEquivBEq α]
+    {l : List ((a : α) × β a)} {k : α}
+    {f : (a : α) → β a → Option (γ a)} (distinct : DistinctKeys l) :
+    containsKey k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) =
+      if h : containsKey k l = true
+      then
+        let entry := getEntry k l h
+        (f entry.1 entry.2).isSome
+      else
+        false := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    rw [distinctKeys_cons_iff] at distinct
+    by_cases contains : containsKey k (hd :: tl)
+    · simp only [contains, ↓reduceDIte]
+      by_cases hdfst_k : hd.fst == k
+      · have : getEntry k (hd :: tl) contains = hd := by
+          simp [getEntry, getEntry?, cond_eq_if, hdfst_k]
+        rw [this]
+        simp only [List.filterMap]
+        cases f hd.fst hd.snd with
+        | some o => simp [hdfst_k]
+        | none =>
+          simp only [Option.map_none', ih (And.left distinct), Option.isSome_none,
+            dite_eq_right_iff, Option.not_isSome, Option.isNone_iff_eq_none]
+          intro h'
+          rw [containsKey_congr (BEq.symm hdfst_k)] at h'
+          simp [h'] at distinct
+      · have contains' := contains
+        simp only [containsKey, hdfst_k, Bool.false_or] at contains'
+        have : getEntry k (hd :: tl) contains = getEntry k tl contains' := by
+          simp only [Bool.not_eq_true] at hdfst_k
+          have : hd = ⟨hd.fst, hd.snd⟩ := rfl
+          simp [this,getEntry_cons_of_false hdfst_k]
+        rw [this]
+        simp only [List.filterMap]
+        cases f hd.fst hd.snd with
+        | some o => simp [hdfst_k, ih (And.left distinct), contains']
+        | none => simp [ih (And.left distinct), contains']
+    · simp only [List.filterMap, contains, Bool.false_eq_true, ↓reduceDIte]
+      simp only [containsKey, Bool.or_eq_true, not_or, Bool.not_eq_true] at contains
+      cases f hd.fst hd.snd with
+      | some o => simp [ih (And.left distinct), contains]
+      | none => simp [ih (And.left distinct), contains]
+
+theorem getEntry?_filterMap [BEq α] [PartialEquivBEq α] {l : List ((a : α) × β a)}
+    {f : (a : α) → β a → Option (γ a)} {k : α} (distinct : DistinctKeys l) :
+    getEntry? k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) =
+      ((getEntry? k l).map (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))).join := by
+  simp
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    simp [List.filterMap]
+    rw [distinctKeys_cons_iff] at distinct
+    cases h : f hd.fst hd.snd with
+    | some o =>
+      simp [h, getEntry?, cond_eq_if]
+      by_cases hd_k: hd.fst == k
+      · simp [hd_k, h]
+      · simp [hd_k, ih (And.left distinct)]
+    | none =>
+      simp [getEntry?, cond_eq_if]
+      split
+      · rename_i hdfst_k
+        simp [h, containsKey_filterMap (And.left distinct)]
+        intro h'
+        simp [containsKey_congr hdfst_k, h'] at distinct
+      · simp [ih (And.left distinct)]
+
+theorem getValueCast?_filterMap [BEq α] [LawfulBEq α] {l : List ((a : α) × β a)}
+    {f : (a : α) → β a → Option (γ a)} {k : α} (distinct : DistinctKeys l) :
+    getValueCast? k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) =
+      if h : containsKey k l = true
+      then
+        f k (getValueCast k l h)
+      else
+        none := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    rw [distinctKeys_cons_iff] at distinct
+    by_cases hd_k : hd.fst = k
+    · rw [← hd_k]
+      simp only [containsKey, beq_self_eq_true, Bool.true_or, ↓reduceDIte, getValueCast,
+        getValueCast?, cast_eq, Option.get_some]
+      cases h:f hd.fst hd.snd with
+      | some o =>
+        simp [List.filterMap, h]
+      | none =>
+        simp only [List.filterMap, h, Option.map_none']
+        apply getValueCast?_eq_none
+        rw [containsKey_filterMap (And.left distinct)]
+        simp [distinct]
+    · simp [List.filterMap]
+      cases h:f hd.fst hd.snd <;>
+      all_goals
+      simp [h, getValueCast?, hd_k, ih (And.left distinct)]
+      split
+      · rename_i h'
+        have contains: containsKey k (hd :: tl) := by
+          simp [containsKey, h']
+        simp [contains, getValueCast, getValueCast?, hd_k]
+      · rename_i h'
+        simp at h'
+        have contains: containsKey k (hd :: tl) = false := by
+          simp [containsKey, h', hd_k]
+        simp [contains]
+
+theorem getValueCastD_filterMap [BEq α] [LawfulBEq α] {l : List ((a : α) × β a)}
+    {f : (a : α) → β a → Option (γ a)} {k : α} {v : γ k} (distinct : DistinctKeys l) :
+    getValueCastD k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) v =
+      if h : containsKey k l = true
+      then
+        (f k (getValueCast k l h)).getD v
+      else
+        v := by
+  rw [getValueCastD_eq_getValueCast?, getValueCast?_filterMap distinct]
+  split
+  · rename_i h
+    simp [h]
+  · simp
+
+theorem getValueCast!_filterMap [BEq α] [LawfulBEq α] {l : List ((a : α) × β a)}
+    {f : (a : α) → β a → Option (γ a)} {k : α} [Inhabited (γ k)] (distinct : DistinctKeys l) :
+    getValueCast! k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) =
+      if h : containsKey k l = true
+      then
+        (f k (getValueCast k l h)).get!
+      else
+        default := by
+  rw [getValueCast!_eq_getValueCast?, getValueCast?_filterMap distinct]
+  split
+  · rename_i h
+    simp [h]
+  · simp
+
 theorem DistinctKeys.map [BEq α] {l : List ((a : α) × β a)} {f : (a : α) → β a → γ a}
     (h : DistinctKeys l) : DistinctKeys (l.map fun p => ⟨p.1, f p.1 p.2⟩) :=
   h.of_keys_eq keys_map.symm

@@ -75,6 +75,7 @@ scoped macro "wf_trivial" : tactic => `(tactic|
     | apply Raw₀.Const.wfImp_insertMany | apply Raw₀.Const.wfImp_insertManyIfNewUnit
     | apply Raw₀.wfImp_alter | apply Raw₀.wfImp_modify
     | apply Raw₀.Const.wfImp_alter | apply Raw₀.Const.wfImp_modify
+    | apply Raw₀.wfImp_filter | apply Raw₀.wfImp_filterMap | apply Raw₀.wfImp_map
     | apply Raw₀.wfImp_erase | apply Raw.WF.out | assumption | apply Raw₀.wfImp_empty
     | apply Raw.WFImp.distinct | apply Raw.WF.empty₀))
 
@@ -106,7 +107,10 @@ private def modifyMap : Std.DHashMap Name (fun _ => Name) :=
      ⟨`alter, ``toListModel_alter⟩,
      ⟨`modify, ``toListModel_modify⟩,
      ⟨`Const.alter, ``Const.toListModel_alter⟩,
-     ⟨`Const.modify, ``Const.toListModel_modify⟩]
+     ⟨`Const.modify, ``Const.toListModel_modify⟩,
+     ⟨`filterMap, ``toListModel_filterMap⟩,
+     ⟨`filter, ``toListModel_filter⟩,
+     ⟨`map, ``toListModel_map⟩]
 
 private def congrNames : MacroM (Array (TSyntax `term)) := do
   return #[← `(_root_.List.Perm.isEmpty_eq), ← `(containsKey_of_perm),
@@ -2451,6 +2455,12 @@ end Const
 
 end Modify
 
+variable {γ : α → Type w}
+
+theorem get?_filterMap [LawfulBEq α] (h : m.1.WF) {k : α} {f : (a : α) → β a → Option (γ a)} :
+    (m.filterMap f).get? k = ((m.get? k).map (fun x => f k x)).join := by
+  simp_to_model [filterMap]
+  sorry
 end Raw₀
 
 end Std.DHashMap.Internal
