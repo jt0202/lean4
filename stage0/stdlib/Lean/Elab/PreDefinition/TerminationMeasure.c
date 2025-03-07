@@ -797,7 +797,7 @@ lean_inc(x_3);
 x_15 = lean_alloc_closure((void*)(l_Lean_Elab_TerminationMeasure_elab___lambda__4), 11, 2);
 lean_closure_set(x_15, 0, x_3);
 lean_closure_set(x_15, 1, x_2);
-x_16 = 0;
+x_16 = 1;
 x_17 = lean_box(x_16);
 x_18 = lean_alloc_closure((void*)(l_Lean_Meta_forallBoundedTelescope___at_Lean_Elab_Term_addAutoBoundImplicits_x27___spec__2___rarg___boxed), 11, 4);
 lean_closure_set(x_18, 0, x_4);
@@ -950,7 +950,7 @@ static lean_object* _init_l_Lean_Elab_TerminationMeasure_elab___closed__2() {
 _start:
 {
 lean_object* x_1; 
-x_1 = lean_mk_string_unchecked("extraParams ≤ arity\n\n  ", 25, 23);
+x_1 = lean_mk_string_unchecked("extraParams ≤ arity\n  ", 24, 22);
 return x_1;
 }
 }
@@ -1361,7 +1361,7 @@ _start:
 lean_object* x_1; lean_object* x_2; lean_object* x_3; lean_object* x_4; lean_object* x_5; lean_object* x_6; 
 x_1 = l_Lean_Elab_TerminationMeasure_elab___closed__4;
 x_2 = l_Lean_Elab_TerminationMeasure_structuralArg___lambda__1___closed__1;
-x_3 = lean_unsigned_to_nat(94u);
+x_3 = lean_unsigned_to_nat(93u);
 x_4 = lean_unsigned_to_nat(8u);
 x_5 = l_Lean_Elab_TerminationMeasure_structuralArg___lambda__1___closed__2;
 x_6 = l___private_Init_Util_0__mkPanicMessageWithDecl(x_1, x_2, x_3, x_4, x_5);
@@ -1421,7 +1421,7 @@ _start:
 lean_object* x_1; lean_object* x_2; lean_object* x_3; lean_object* x_4; lean_object* x_5; lean_object* x_6; 
 x_1 = l_Lean_Elab_TerminationMeasure_elab___closed__4;
 x_2 = l_Lean_Elab_TerminationMeasure_structuralArg___lambda__1___closed__1;
-x_3 = lean_unsigned_to_nat(91u);
+x_3 = lean_unsigned_to_nat(90u);
 x_4 = lean_unsigned_to_nat(2u);
 x_5 = l_Lean_Elab_TerminationMeasure_structuralArg___closed__2;
 x_6 = l___private_Init_Util_0__mkPanicMessageWithDecl(x_1, x_2, x_3, x_4, x_5);

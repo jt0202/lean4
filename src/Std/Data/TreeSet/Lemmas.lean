@@ -17,7 +17,7 @@ This file contains lemmas about `Std.Data.TreeSet`. Most of the lemmas require
 set_option linter.missingDocs true
 set_option autoImplicit false
 
-universe u v
+universe u v w
 
 namespace Std.TreeSet
 
@@ -333,5 +333,272 @@ theorem containsThenInsert_fst [TransCmp cmp] {k : α} :
 theorem containsThenInsert_snd [TransCmp cmp] {k : α} :
     (t.containsThenInsert k).2 = t.insert k :=
   ext <| TreeMap.containsThenInsertIfNew_snd
+
+@[simp]
+theorem length_toList [TransCmp cmp] :
+    t.toList.length = t.size :=
+  DTreeMap.length_keys
+
+@[simp]
+theorem isEmpty_toList :
+    t.toList.isEmpty = t.isEmpty :=
+  DTreeMap.isEmpty_keys
+
+@[simp]
+theorem contains_toList [BEq α] [LawfulBEqCmp cmp] [TransCmp cmp] {k : α} :
+    t.toList.contains k = t.contains k :=
+  DTreeMap.contains_keys
+
+@[simp]
+theorem mem_toList [LawfulEqCmp cmp] [TransCmp cmp] {k : α} :
+    k ∈ t.toList ↔ k ∈ t :=
+  DTreeMap.mem_keys
+
+theorem distinct_toList [TransCmp cmp] :
+    t.toList.Pairwise (fun a b => ¬ cmp a b = .eq) :=
+  DTreeMap.distinct_keys
+
+section monadic
+
+variable {δ : Type w} {m : Type w → Type w}
+
+theorem foldlM_eq_foldlM_toList [Monad m] [LawfulMonad m] {f : δ → α → m δ} {init : δ} :
+    t.foldlM f init = t.toList.foldlM f init :=
+  TreeMap.foldlM_eq_foldlM_keys
+
+theorem foldl_eq_foldl_toList {f : δ → α → δ} {init : δ} :
+    t.foldl f init = t.toList.foldl f init :=
+  TreeMap.foldl_eq_foldl_keys
+
+theorem foldrM_eq_foldrM_toList [Monad m] [LawfulMonad m] {f : α → δ → m δ} {init : δ} :
+    t.foldrM f init = t.toList.foldrM f init :=
+  TreeMap.foldrM_eq_foldrM_keys
+
+theorem foldr_eq_foldr_toList {f : α → δ → δ} {init : δ} :
+    t.foldr f init = t.toList.foldr f init :=
+  TreeMap.foldr_eq_foldr_keys
+
+@[simp]
+theorem forM_eq_forM [Monad m] [LawfulMonad m] {f : α → m PUnit} :
+    t.forM f = ForM.forM t f := rfl
+
+theorem forM_eq_forM_toList [Monad m] [LawfulMonad m] {f : α → m PUnit} :
+    ForM.forM t f = t.toList.forM f :=
+  TreeMap.forM_eq_forM_keys
+
+@[simp]
+theorem forIn_eq_forIn [Monad m] [LawfulMonad m] {f : α → δ → m (ForInStep δ)} {init : δ} :
+    t.forIn f init = ForIn.forIn t init f := rfl
+
+theorem forIn_eq_forIn_toList [Monad m] [LawfulMonad m] {f : α → δ → m (ForInStep δ)} {init : δ} :
+    ForIn.forIn t init f = ForIn.forIn t.toList init f :=
+  TreeMap.forIn_eq_forIn_keys
+
+end monadic
+
+@[simp]
+theorem insertMany_nil :
+    t.insertMany [] = t :=
+  rfl
+
+@[simp]
+theorem insertMany_list_singleton {k : α} :
+    t.insertMany [k] = t.insert k :=
+  rfl
+
+theorem insertMany_cons {l : List α} {k : α} :
+    t.insertMany (k :: l) = (t.insert k).insertMany l :=
+  ext TreeMap.insertManyIfNewUnit_cons
+
+@[simp]
+theorem contains_insertMany_list [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp]
+    {l : List α} {k : α} :
+    (t.insertMany l).contains k = (t.contains k || l.contains k) :=
+  TreeMap.contains_insertManyIfNewUnit_list
+
+@[simp]
+theorem mem_insertMany_list [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp]
+    {l : List α} {k : α} :
+    k ∈ insertMany t l ↔ k ∈ t ∨ l.contains k :=
+  TreeMap.mem_insertManyIfNewUnit_list
+
+theorem mem_of_mem_insertMany_list [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp]
+    {l : List α} {k : α} (contains_eq_false : l.contains k = false) :
+    k ∈ insertMany t l → k ∈ t :=
+  TreeMap.mem_of_mem_insertManyIfNewUnit_list contains_eq_false
+
+theorem get?_insertMany_list_of_not_mem_of_contains_eq_false
+    [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] {l : List α} {k : α}
+    (not_mem : ¬ k ∈ t) (contains_eq_false : l.contains k = false) :
+    get? (insertMany t l) k = none :=
+  TreeMap.getKey?_insertManyIfNewUnit_list_of_not_mem_of_contains_eq_false
+    not_mem contains_eq_false
+
+theorem get?_insertMany_list_of_not_mem_of_mem [TransCmp cmp]
+    {l : List α} {k k' : α} (k_eq : cmp k k' = .eq)
+    (not_mem : ¬ k ∈ t) (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) (mem : k ∈ l) :
+    get? (insertMany t l) k' = some k :=
+  TreeMap.getKey?_insertManyIfNewUnit_list_of_not_mem_of_mem k_eq not_mem distinct mem
+
+theorem get?_insertMany_list_of_mem [TransCmp cmp]
+    {l : List α} {k : α} (mem : k ∈ t) :
+    get? (insertMany t l) k = get? t k :=
+  TreeMap.getKey?_insertManyIfNewUnit_list_of_mem mem
+
+theorem get_insertMany_list_of_mem [TransCmp cmp]
+    {l : List α} {k : α} {h'} (contains : k ∈ t) :
+    get (insertMany t l) k h' = get t k contains :=
+  TreeMap.getKey_insertManyIfNewUnit_list_of_mem contains
+
+theorem get_insertMany_list_of_not_mem_of_mem [TransCmp cmp]
+    {l : List α}
+    {k k' : α} (k_eq : cmp k k' = .eq) {h'} (not_mem : ¬ k ∈ t)
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) (mem : k ∈ l) :
+    get (insertMany t l) k' h' = k :=
+  TreeMap.getKey_insertManyIfNewUnit_list_of_not_mem_of_mem k_eq not_mem distinct mem
+
+theorem get!_insertMany_list_of_not_mem_of_contains_eq_false
+    [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] [Inhabited α] {l : List α} {k : α}
+    (not_mem : ¬ k ∈ t) (contains_eq_false : l.contains k = false) :
+    get! (insertMany t l) k = default :=
+  TreeMap.getKey!_insertManyIfNewUnit_list_of_not_mem_of_contains_eq_false
+    not_mem contains_eq_false
+
+theorem get!_insertMany_list_of_not_mem_of_mem [TransCmp cmp]
+    [Inhabited α] {l : List α} {k k' : α} (k_eq : cmp k k' = .eq)
+    (not_mem : ¬ k ∈ t) (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) (mem : k ∈ l) :
+    get! (insertMany t l) k' = k :=
+  TreeMap.getKey!_insertManyIfNewUnit_list_of_not_mem_of_mem k_eq not_mem distinct mem
+
+theorem get!_insertMany_list_of_mem [TransCmp cmp]
+    [Inhabited α] {l : List α} {k : α} (mem : k ∈ t):
+    get! (insertMany t l) k = get! t k :=
+  TreeMap.getKey!_insertManyIfNewUnit_list_of_mem mem
+
+theorem getD_insertMany_list_of_not_mem_of_contains_eq_false
+    [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] {l : List α} {k fallback : α}
+    (not_mem : ¬ k ∈ t) (contains_eq_false : l.contains k = false) :
+    getD (insertMany t l) k fallback = fallback :=
+  TreeMap.getKeyD_insertManyIfNewUnit_list_of_not_mem_of_contains_eq_false
+    not_mem contains_eq_false
+
+theorem getD_insertMany_list_of_not_mem_of_mem [TransCmp cmp]
+    {l : List α} {k k' fallback : α} (k_eq : cmp k k' = .eq)
+    (not_mem : ¬ k ∈ t) (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) (mem : k ∈ l) :
+    getD (insertMany t l) k' fallback = k :=
+  TreeMap.getKeyD_insertManyIfNewUnit_list_of_not_mem_of_mem k_eq not_mem distinct mem
+
+theorem getD_insertMany_list_of_mem [TransCmp cmp]
+    {l : List α} {k fallback : α} (mem : k ∈ t) :
+    getD (insertMany t l) k fallback = getD t k fallback :=
+  TreeMap.getKeyD_insertManyIfNewUnit_list_of_mem mem
+
+theorem size_insertMany_list [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp]
+    {l : List α}
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) :
+    (∀ (a : α), a ∈ t → l.contains a = false) →
+    (insertMany t l).size = t.size + l.length :=
+  TreeMap.size_insertManyIfNewUnit_list distinct
+
+theorem size_le_size_insertMany_list [TransCmp cmp]
+    {l : List α} :
+    t.size ≤ (insertMany t l).size :=
+  TreeMap.size_le_size_insertManyIfNewUnit_list
+
+theorem size_insertMany_list_le [TransCmp cmp]
+    {l : List α} :
+    (insertMany t l).size ≤ t.size + l.length :=
+  TreeMap.size_insertManyIfNewUnit_list_le
+
+@[simp]
+theorem isEmpty_insertMany_list [TransCmp cmp] {l : List α} :
+    (insertMany t l).isEmpty = (t.isEmpty && l.isEmpty) :=
+  TreeMap.isEmpty_insertManyIfNewUnit_list
+
+@[simp]
+theorem ofList_nil :
+    ofList ([] : List α) cmp =
+      (∅ : TreeSet α cmp) :=
+  rfl
+
+@[simp]
+theorem ofList_singleton {k : α} :
+    ofList [k] cmp = (∅ : TreeSet α cmp).insert k :=
+  rfl
+
+theorem ofList_cons {hd : α} {tl : List α} :
+    ofList (hd :: tl) cmp =
+      insertMany ((∅ : TreeSet α cmp).insert hd) tl :=
+  ext TreeMap.unitOfList_cons
+
+@[simp]
+theorem contains_ofList [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] {l : List α} {k : α} :
+    (ofList l cmp).contains k = l.contains k :=
+  TreeMap.contains_unitOfList
+
+@[simp]
+theorem mem_ofList [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] {l : List α} {k : α} :
+    k ∈ ofList l cmp ↔ l.contains k := by
+  simp [mem_iff_contains]
+
+theorem get?_ofList_of_contains_eq_false [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp]
+    {l : List α} {k : α}
+    (contains_eq_false : l.contains k = false) :
+    get? (ofList l cmp) k = none :=
+  TreeMap.getKey?_unitOfList_of_contains_eq_false contains_eq_false
+
+theorem get?_ofList_of_mem [TransCmp cmp]
+    {l : List α} {k k' : α} (k_eq : cmp k k' = .eq)
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) (mem : k ∈ l) :
+    get? (ofList l cmp) k' = some k :=
+  TreeMap.getKey?_unitOfList_of_mem k_eq distinct mem
+
+theorem get_ofList_of_mem [TransCmp cmp]
+    {l : List α}
+    {k k' : α} (k_eq : cmp k k' = .eq)
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq))
+    (mem : k ∈ l) {h'} :
+    get (ofList l cmp) k' h' = k :=
+  TreeMap.getKey_unitOfList_of_mem k_eq distinct mem
+
+theorem get!_ofList_of_contains_eq_false [TransCmp cmp] [BEq α]
+    [LawfulBEqCmp cmp] [Inhabited α] {l : List α} {k : α}
+    (contains_eq_false : l.contains k = false) :
+    get! (ofList l cmp) k = default :=
+  TreeMap.getKey!_unitOfList_of_contains_eq_false contains_eq_false
+
+theorem get!_ofList_of_mem [TransCmp cmp]
+    [Inhabited α] {l : List α} {k k' : α} (k_eq : cmp k k' = .eq)
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq))
+    (mem : k ∈ l) :
+    get! (ofList l cmp) k' = k :=
+  TreeMap.getKey!_unitOfList_of_mem k_eq distinct mem
+
+theorem getD_ofList_of_contains_eq_false [TransCmp cmp] [BEq α]
+    [LawfulBEqCmp cmp] {l : List α} {k fallback : α}
+    (contains_eq_false : l.contains k = false) :
+    getD (ofList l cmp) k fallback = fallback :=
+  TreeMap.getKeyD_unitOfList_of_contains_eq_false contains_eq_false
+
+theorem getD_ofList_of_mem [TransCmp cmp]
+    {l : List α} {k k' fallback : α} (k_eq : cmp k k' = .eq)
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq))
+    (mem : k ∈ l) :
+    getD (ofList l cmp) k' fallback = k :=
+  TreeMap.getKeyD_unitOfList_of_mem k_eq distinct mem
+
+theorem size_ofList [TransCmp cmp] {l : List α}
+    (distinct : l.Pairwise (fun a b => ¬ cmp a b = .eq)) :
+    (ofList l cmp).size = l.length :=
+  TreeMap.size_unitOfList distinct
+
+theorem size_ofList_le [TransCmp cmp] {l : List α} :
+    (ofList l cmp).size ≤ l.length :=
+  TreeMap.size_unitOfList_le
+
+@[simp]
+theorem isEmpty_ofList [TransCmp cmp] {l : List α} :
+    (ofList l cmp).isEmpty = l.isEmpty :=
+  TreeMap.isEmpty_unitOfList
 
 end Std.TreeSet

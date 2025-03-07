@@ -14078,7 +14078,7 @@ _start:
 lean_object* x_1; lean_object* x_2; lean_object* x_3; lean_object* x_4; lean_object* x_5; lean_object* x_6; 
 x_1 = l_Lean_Meta_SimpTheorem_getValue___closed__1;
 x_2 = l_Lean_Meta_SimpTheorem_getValue___closed__2;
-x_3 = lean_unsigned_to_nat(1745u);
+x_3 = lean_unsigned_to_nat(1757u);
 x_4 = lean_unsigned_to_nat(18u);
 x_5 = l_Lean_Meta_SimpTheorem_getValue___closed__3;
 x_6 = l___private_Init_Util_0__mkPanicMessageWithDecl(x_1, x_2, x_3, x_4, x_5);
@@ -15427,7 +15427,6 @@ lean_object* x_11; lean_object* x_12;
 lean_free_object(x_5);
 x_11 = lean_box(0);
 x_12 = l_Lean_Meta_SimpTheorems_unfoldEvenWithEqns___lambda__2(x_1, x_11, x_2, x_3, x_8);
-lean_dec(x_1);
 return x_12;
 }
 else
@@ -15460,7 +15459,6 @@ if (x_18 == 0)
 lean_object* x_19; lean_object* x_20; 
 x_19 = lean_box(0);
 x_20 = l_Lean_Meta_SimpTheorems_unfoldEvenWithEqns___lambda__2(x_1, x_19, x_2, x_3, x_16);
-lean_dec(x_1);
 return x_20;
 }
 else
@@ -15496,7 +15494,6 @@ _start:
 lean_object* x_6; 
 x_6 = l_Lean_Meta_SimpTheorems_unfoldEvenWithEqns___lambda__2(x_1, x_2, x_3, x_4, x_5);
 lean_dec(x_2);
-lean_dec(x_1);
 return x_6;
 }
 }

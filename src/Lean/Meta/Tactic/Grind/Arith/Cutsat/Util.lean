@@ -46,9 +46,8 @@ def get' : GoalM State := do
 
 /-- Returns `true` if the cutsat state is inconsistent. -/
 def inconsistent : GoalM Bool := do
-  -- TODO: we will have a nested backtracking search in cutsat
-  -- and this function will have to be refined.
-  isInconsistent
+  if (← isInconsistent) then return true
+  return (← get').conflict?.isSome
 
 def getVars : GoalM (PArray Expr) :=
   return (← get').vars
@@ -65,17 +64,19 @@ def mkCnstrId : GoalM Nat := do
   modify' fun s => { s with nextCnstrId := id + 1 }
   return id
 
-def mkEqCnstr (p : Poly) (h : EqCnstrProof) : GoalM EqCnstr := do
-  return { p, h, id := (← mkCnstrId) }
-
 @[extern "lean_grind_cutsat_assert_eq"] -- forward definition
 opaque EqCnstr.assert (c : EqCnstr) : GoalM Unit
 
-private partial def shrink (a : PArray Int) (sz : Nat) : PArray Int :=
-  if a.size > sz then
-    shrink a.pop sz
-  else
-    a
+-- TODO: PArray.shrink and PArray.resize
+
+partial def shrink (a : PArray Rat) (sz : Nat) : PArray Rat :=
+  if a.size > sz then shrink a.pop sz else a
+
+partial def resize (a : PArray Rat) (sz : Nat) : PArray Rat :=
+  if a.size > sz then shrink a sz else go a
+where
+  go (a : PArray Rat) : PArray Rat :=
+    if a.size < sz then go (a.push 0) else a
 
 /-- Resets the assingment of any variable bigger or equal to `x`. -/
 def resetAssignmentFrom (x : Var) : GoalM Unit := do
@@ -185,7 +186,8 @@ def toContextExpr : GoalM Expr := do
     return RArray.toExpr (mkConst ``Int) id (RArray.leaf (mkIntLit 0))
 
 structure ProofM.State where
-  cache : Std.HashMap Nat Expr := {}
+  cache       : Std.HashMap UInt64 Expr := {}
+  polyMap     : Std.HashMap Poly Expr := {}
 
 /-- Auxiliary monad for constructing cutsat proofs. -/
 abbrev ProofM := ReaderT Expr (StateRefT ProofM.State GoalM)
@@ -194,31 +196,47 @@ abbrev ProofM := ReaderT Expr (StateRefT ProofM.State GoalM)
 abbrev getContext : ProofM Expr := do
   read
 
-abbrev caching (id : Nat) (k : ProofM Expr) : ProofM Expr := do
-  if let some h := (← get).cache[id]? then
+abbrev caching (c : α) (k : ProofM Expr) : ProofM Expr := do
+  let addr := unsafe (ptrAddrUnsafe c).toUInt64 >>> 2
+  if let some h := (← get).cache[addr]? then
     return h
   else
     let h ← k
-    modify fun s => { s with cache := s.cache.insert id h }
+    modify fun s => { s with cache := s.cache.insert addr h }
     return h
 
-abbrev DvdCnstr.caching (c : DvdCnstr) (k : ProofM Expr) : ProofM Expr := Cutsat.caching c.id k
-abbrev LeCnstr.caching (c : LeCnstr) (k : ProofM Expr) : ProofM Expr := Cutsat.caching c.id k
-abbrev EqCnstr.caching (c : EqCnstr) (k : ProofM Expr) : ProofM Expr := Cutsat.caching c.id k
-abbrev DiseqCnstr.caching (c : DiseqCnstr) (k : ProofM Expr) : ProofM Expr := Cutsat.caching c.id k
+def mkPolyDecl (p : Poly) : ProofM Expr := do
+  if let some e := (← get).polyMap[p]? then
+    return e
+  let x := mkFVar (← mkFreshFVarId)
+  modify fun s => { s with
+    polyMap := s.polyMap.insert p x
+  }
+  return x
 
 abbrev withProofContext (x : ProofM Expr) : GoalM Expr := do
   withLetDecl `ctx (mkApp (mkConst ``RArray) (mkConst ``Int)) (← toContextExpr) fun ctx => do
-    let h ← x ctx |>.run' {}
+    go ctx |>.run' {}
+where
+  go : ProofM Expr := do
+    let mut h ← x
+    let ps := (← get).polyMap.toArray
+    h := h.abstract <| ps.map (·.2)
+    let polyType := mkConst ``Int.Linear.Poly
+    let mut i := ps.size
+    for (p, _) in ps.reverse do
+      h := mkLet ((`p).appendIndexAfter i) polyType (toExpr p) h
+      i := i - 1
+    let ctx ← read
     mkLetFVars #[ctx] h
 
 /--
 Tries to evaluate the polynomial `p` using the partial model/assignment built so far.
 The result is `none` if the polynomial contains variables that have not been assigned.
 -/
-def _root_.Int.Linear.Poly.eval? (p : Poly) : GoalM (Option Int) := do
+def _root_.Int.Linear.Poly.eval? (p : Poly) : GoalM (Option Rat) := do
   let a := (← get').assignment
-  let rec go (v : Int) : Poly → Option Int
+  let rec go (v : Rat) : Poly → Option Rat
     | .num k => some (v + k)
     | .add k x p =>
       if _ : x < a.size then
@@ -239,7 +257,8 @@ Returns `.true` if `c` is satisfied by the current partial model,
 -/
 def DvdCnstr.satisfied (c : DvdCnstr) : GoalM LBool := do
   let some v ← c.p.eval? | return .undef
-  return decide (c.d ∣ v) |>.toLBool
+  if v.den != 1 then return .false
+  return decide (c.d ∣ v.num) |>.toLBool
 
 def _root_.Int.Linear.Poly.satisfiedLe (p : Poly) : GoalM LBool := do
   let some v ← p.eval? | return .undef
@@ -272,5 +291,26 @@ def _root_.Int.Linear.Poly.findVarToSubst (p : Poly) : GoalM (Option (Int × Var
       return some (k, x, c)
     else
       findVarToSubst p
+
+def CooperSplitPred.numCases (pred : CooperSplitPred) : Nat :=
+  let a  := pred.c₁.p.leadCoeff
+  let b  := pred.c₂.p.leadCoeff
+  match pred.c₃? with
+  | none => if pred.left then a.natAbs else b.natAbs
+  | some c₃ =>
+    let c  := c₃.p.leadCoeff
+    let d  := c₃.d
+    if pred.left then
+      Int.lcm a (a * d / Int.gcd (a * d) c)
+    else
+      Int.lcm b (b * d / Int.gcd (b * d) c)
+
+def CooperSplitPred.pp (pred : CooperSplitPred) : GoalM MessageData := do
+  return m!"{← pred.c₁.pp}, {← pred.c₂.pp}, {← if let some c₃ := pred.c₃? then c₃.pp else pure "none"}"
+
+def UnsatProof.pp (h : UnsatProof) : GoalM MessageData := do
+  match h with
+  | .le c | .eq c | .dvd c | .diseq c => c.pp
+  | .cooper c₁ c₂ c₃ => return m!"{← c₁.pp}, {← c₂.pp}, {← c₃.pp}"
 
 end Lean.Meta.Grind.Arith.Cutsat

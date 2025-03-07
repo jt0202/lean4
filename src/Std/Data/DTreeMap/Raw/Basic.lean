@@ -559,16 +559,16 @@ def fold (f : δ → (a : α) → β a → δ) (init : δ) (t : Raw α β cmp) :
   t.foldl f init
 
 @[inline, inherit_doc DTreeMap.foldrM]
-def foldrM (f : δ → (a : α) → β a → m δ) (init : δ) (t : Raw α β cmp) : m δ :=
+def foldrM (f : (a : α) → β a → δ → m δ) (init : δ) (t : Raw α β cmp) : m δ :=
   t.inner.foldrM f init
 
 @[inline, inherit_doc DTreeMap.foldr]
-def foldr (f : δ → (a : α) → β a → δ) (init : δ) (t : Raw α β cmp) : δ :=
+def foldr (f : (a : α) → β a → δ → δ) (init : δ) (t : Raw α β cmp) : δ :=
   t.inner.foldr f init
 
 @[inline, inherit_doc foldr, deprecated foldr (since := "2025-02-12")]
 def revFold (f : δ → (a : α) → β a → δ) (init : δ) (t : Raw α β cmp) : δ :=
-  foldr f init t
+  foldr (fun k v acc => f acc k v) init t
 
 @[inline, inherit_doc DTreeMap.partition]
 def partition (f : (a : α) → β a → Bool) (t : Raw α β cmp) : Raw α β cmp × Raw α β cmp :=
@@ -584,13 +584,33 @@ def forM (f : (a : α) → β a → m PUnit) (t : Raw α β cmp) : m PUnit :=
 
 @[inline, inherit_doc DTreeMap.forIn]
 def forIn (f : (a : α) → β a → δ → m (ForInStep δ)) (init : δ) (t : Raw α β cmp) : m δ :=
-  t.inner.forIn (fun c a b => f a b c) init
+  t.inner.forIn f init
 
 instance : ForM m (Raw α β cmp) ((a : α) × β a) where
   forM t f := t.forM (fun a b => f ⟨a, b⟩)
 
 instance : ForIn m (Raw α β cmp) ((a : α) × β a) where
   forIn t init f := t.forIn (fun a b acc => f ⟨a, b⟩ acc) init
+
+namespace Const
+
+variable {β : Type v}
+
+/-!
+We do not define `ForM` and `ForIn` instances that are specialized to constant `β`. Instead, we
+define uncurried versions of `forM` and `forIn` that will be used in the `Const` lemmas and to
+define the `ForM` and `ForIn` instances for `DTreeMap.Raw`.
+-/
+
+@[inline, inherit_doc Raw.forM]
+def forMUncurried (f : α × β → m PUnit) (t : Raw α β cmp) : m PUnit :=
+  t.inner.forM fun a b => f ⟨a, b⟩
+
+@[inline, inherit_doc Raw.forIn]
+def forInUncurried (f : α × β → δ → m (ForInStep δ)) (init : δ) (t : Raw α β cmp) : m δ :=
+  t.inner.forIn (fun a b d => f ⟨a, b⟩ d) init
+
+end Const
 
 @[inline, inherit_doc DTreeMap.any]
 def any (t : Raw α β cmp) (p : (a : α) → β a → Bool) : Bool := Id.run $ do

@@ -21,26 +21,28 @@ and satisfy `x / 0 = 0` and `x % 0 = x`.
 In early versions of Lean, the typeclasses provided by `/` and `%`
 were defined in terms of `tdiv` and `tmod`, and these were named simply as `div` and `mod`.
 
-However we decided it was better to use `ediv` and `emod`,
+However we decided it was better to use `ediv` and `emod` for the default typeclass instances,
 as they are consistent with the conventions used in SMTLib, and Mathlib,
 and often mathematical reasoning is easier with these conventions.
-
 At that time, we did not rename `div` and `mod` to `tdiv` and `tmod` (along with all their lemma).
+
 In September 2024, we decided to do this rename (with deprecations in place),
 and later we intend to rename `ediv` and `emod` to `div` and `mod`, as nearly all users will only
 ever need to use these functions and their associated lemmas.
 
-In December 2024, we removed `tdiv` and `tmod`, but have not yet renamed `ediv` and `emod`.
+In December 2024, we removed `div` and `mod`, but have not yet renamed `ediv` and `emod`.
 -/
 
 /-! ### E-rounding division
-This pair satisfies `0 ≤ mod x y < natAbs y` for `y ≠ 0`.
+This pair satisfies `0 ≤ emod x y < natAbs y` for `y ≠ 0`.
 -/
 
 /--
-Integer division. This version of `Int.div` uses the E-rounding convention
-(euclidean division), in which `Int.emod x y` satisfies `0 ≤ mod x y < natAbs y` for `y ≠ 0`
-and `Int.ediv` is the unique function satisfying `emod x y + (ediv x y) * y = x`.
+Integer division. This version of integer division uses the E-rounding convention
+(euclidean division), in which `Int.emod x y` satisfies `0 ≤ emod x y < natAbs y` for `y ≠ 0`
+and `Int.ediv` is the unique function satisfying `emod x y + (ediv x y) * y = x` for `y ≠ 0`.
+
+This means that `Int.ediv x y = floor (x / y)` when `y > 0` and `Int.ediv x y = ceil (x / y)` when `y < 0`.
 
 This is the function powering the `/` notation on integers.
 
@@ -71,7 +73,7 @@ def ediv : (@& Int) → (@& Int) → Int
   | -[m+1],  -[n+1]  => ofNat (succ (m / succ n))
 
 /--
-Integer modulus. This version of `Int.mod` uses the E-rounding convention
+Integer modulus. This version of integer modulus uses the E-rounding convention
 (euclidean division), in which `Int.emod x y` satisfies `0 ≤ emod x y < natAbs y` for `y ≠ 0`
 and `Int.ediv` is the unique function satisfying `emod x y + (ediv x y) * y = x`.
 
@@ -109,7 +111,7 @@ instance : Div Int where
 instance : Mod Int where
   mod := Int.emod
 
-@[simp, norm_cast] theorem ofNat_ediv (m n : Nat) : (↑(m / n) : Int) = ↑m / ↑n := rfl
+@[norm_cast] theorem ofNat_ediv (m n : Nat) : (↑(m / n) : Int) = ↑m / ↑n := rfl
 
 theorem ofNat_ediv_ofNat {a b : Nat} : (↑a / ↑b : Int) = (a / b : Nat) := rfl
 @[norm_cast]
@@ -164,6 +166,9 @@ def tdiv : (@& Int) → (@& Int) → Int
   to pair with `Int.tdiv`, meaning that `tmod a b + b * (tdiv a b) = a`
   unconditionally (see [`Int.tmod_add_tdiv`][theo tmod_add_tdiv]). In
   particular, `a % 0 = a`.
+
+  `tmod` satisfies `natAbs (tmod a b) = natAbs a % natAbs b`,
+  and when `b` does not divide `a`, `tmod a b` has the same sign as `a`.
 
   [t-rounding]: https://dl.acm.org/doi/pdf/10.1145/128861.128862
   [theo tmod_add_tdiv]: https://leanprover-community.github.io/mathlib4_docs/find/?pattern=Int.tmod_add_tdiv#doc
@@ -229,7 +234,7 @@ def fdiv : Int → Int → Int
   | -[m+1],  -[n+1]  => ofNat (succ m / succ n)
 
 /--
-Integer modulus. This version of `Int.mod` uses the F-rounding convention
+Integer modulus. This version of integer modulus uses the F-rounding convention
 (flooring division), in which `Int.fdiv x y` satisfies `fdiv x y = floor (x / y)`
 and `Int.fmod` is the unique function satisfying `fmod x y + (fdiv x y) * y = x`.
 
@@ -268,11 +273,14 @@ Balanced mod (and balanced div) are a division and modulus pair such
 that `b * (Int.bdiv a b) + Int.bmod a b = a` and
 `-b/2 ≤ Int.bmod a b < b/2` for all `a : Int` and `b > 0`.
 
-This is used in Omega as well as signed bitvectors.
+Note that unlike `emod`, `fmod`, and `tmod`,
+`bmod` takes a natural number as the second argument, rather than an integer.
+
+This function is used in `omega` as well as signed bitvectors.
 -/
 
 /--
-Balanced modulus.  This version of Integer modulus uses the
+Balanced modulus.  This version of integer modulus uses the
 balanced rounding convention, which guarantees that
 `-m/2 ≤ bmod x m < m/2` for `m ≠ 0` and `bmod x m` is congruent
 to `x` modulo `m`.
