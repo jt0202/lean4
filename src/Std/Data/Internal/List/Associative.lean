@@ -1634,6 +1634,54 @@ theorem DistinctKeys.filterMap [BEq α] [PartialEquivBEq α] {l : List ((a : α)
   apply Sublist.map
   exact filter_sublist l
 
+theorem containsKey_filterMap_eq_false_of_containsKey_eq_false [BEq α] {k : α}
+    {f : (a : α) → β a → Option (γ a)}  {l : List ((a : α) × β a)} (h : containsKey k l = false) :
+    containsKey k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) = false := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    rw [containsKey_cons_eq_false] at h
+    simp [List.filterMap]
+    split
+    · apply ih (And.right h)
+    · rename_i o x h'
+      simp [containsKey, ← h']
+      constructor
+      · have : ∃ (c : γ hd.fst), x = ⟨hd.fst, c⟩ := by
+          cases hf : f hd.1 hd.2 with
+          | some o' =>
+            exists o'
+            simp [hf] at h'
+            simp [h']
+          | none =>
+            simp [hf] at h'
+        rcases this with ⟨c, this⟩
+        simp [this, And.left h]
+      · apply ih (And.right h)
+
+theorem getEntry?_filterMap [BEq α] [PartialEquivBEq α] {k : α} {f : (a : α) → β a → Option (γ a)}
+    {l : List ((a : α) × β a)} (distinct : DistinctKeys l) :
+    getEntry? k (l.filterMap (fun p => Option.map (fun x => ⟨p.fst, x⟩) (f p.fst p.snd))) =
+      (getEntry? k l).bind (fun p => (f p.1 p.2).map (⟨p.1, ·⟩)) := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    rw [distinctKeys_cons_iff] at distinct
+    cases h: f hd.1 hd.2 with
+    | none =>
+      simp [getEntry?, List.filterMap, h]
+      by_cases hd_k : hd.1 == k
+      · simp [hd_k, h]
+        apply containsKey_filterMap_eq_false_of_containsKey_eq_false
+        rw [containsKey_congr (BEq.symm hd_k)]
+        exact And.right distinct
+      · simp [hd_k, ih (And.left distinct)]
+    | some o =>
+      simp [List.filterMap, h, getEntry?]
+      by_cases hd_k : hd.1 == k
+      · simp [hd_k, h]
+      · simp [hd_k, ih (And.left distinct)]
+
 theorem DistinctKeys.map [BEq α] {l : List ((a : α) × β a)} {f : (a : α) → β a → γ a}
     (h : DistinctKeys l) : DistinctKeys (l.map fun p => ⟨p.1, f p.1 p.2⟩) :=
   h.of_keys_eq keys_map.symm

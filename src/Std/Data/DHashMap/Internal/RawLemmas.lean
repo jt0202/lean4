@@ -2750,6 +2750,12 @@ end Const
 
 end Equiv
 
+variable {γ : α → Type w}
+
+theorem get?_filterMap [LawfulBEq α] {f : (a : α) → β a → Option (γ a)} {k : α} :
+    (m.filterMap f).get? k = (m.get? k).map (f k) := by
+  sorry
+
 end Raw₀
 
 end Std.DHashMap.Internal
