@@ -10403,4 +10403,23 @@ theorem interSmaller_perm_filter [BEq α] [EquivBEq α] (l₁ l₂ : List ((a : 
     rw [List.getEntry?_filter h₁, List.getEntry?_interSmaller]
 
 end InterSmaller
+
+theorem length_filter_add_length_filter_neg_eq_length (p : (a : α) → β a → Bool)
+    (l : List ((a : α) × β a)) :
+    (l.filter (fun x => p x.1 x.2)).length + (l.filter (fun x => ! p x.1 x.2)).length = l.length := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    simp only [List.filter_cons, Bool.not_eq_eq_eq_not, Bool.not_true, List.length_cons]
+    split
+    · rename_i h
+      simp only [List.length_cons, h, Bool.true_eq_false, ↓reduceIte]
+      rw [Nat.add_assoc _ 1 _, Nat.add_comm 1, ← Nat.add_assoc]
+      exact Nat.add_right_cancel_iff.mpr ih
+    · rename_i h
+      simp only [h, ↓reduceIte, List.length_cons]
+      rw [← Nat.add_assoc]
+      exact Nat.add_right_cancel_iff.mpr ih
+
+
 end Std.Internal.List

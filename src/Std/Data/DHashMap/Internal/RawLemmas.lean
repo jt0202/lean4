@@ -135,7 +135,7 @@ private meta def modifyMap : Std.DHashMap Name (fun _ => Array Name) :=
      ⟨`filter, #[``toListModel_filter]⟩,
      ⟨`map, #[``toListModel_map]⟩,
      ⟨`filterMap, #[``toListModel_filterMap]⟩,
-     ⟨`partition, #[``toListModel_fst_partition]⟩]
+     ⟨`partition, #[``toListModel_fst_partition, ``toListModel_snd_partition]⟩]
 
 private theorem perm_map_congr_left {α : Type u} {β : Type v} {l l' : List α} {f : α → β}
     {l₂ : List β} (h : l.Perm l') : (l.map f).Perm l₂ ↔ (l'.map f).Perm l₂ :=
@@ -187,7 +187,6 @@ private meta def queryMap : Std.DHashMap Name (fun _ => Name × Array (MacroM (T
 /-- Internal implementation detail of the hash map -/
 scoped syntax "simp_to_model" (" [" (ident,*) "]")? ("using" term)? : tactic
 
--- call equiv, filter, partition
 macro_rules
 | `(tactic| simp_to_model $[[$names,*]]? $[using $using?]?) => do
   let mut queryNames : Array Name := #[]
@@ -198,7 +197,6 @@ macro_rules
       queryNames := queryNames.push query
       for c in congr do
         congrNames := congrNames.push (← c)
-  -- queryNames = [Equiv], next if not executed
   if queryNames.isEmpty then
     for (q, c) in queryMap.valuesArray do
       queryNames := queryNames.push q
@@ -207,11 +205,8 @@ macro_rules
   let mut congrModify : Array (TSyntax `term) := #[]
   if let some modifyNames := names then
     for modify in modifyNames.getElems.flatMap
-        -- changed to allow arrays
         (fun n => modifyMap.getD (Lean.Syntax.getId n) #[]) do
-      -- modify ∈ [toListModel_filter, toListModel_fst_partition, toListModel_snd_partition]
       for congr in congrNames do
-        -- unclear how this works
         congrModify := congrModify.push (← `($congr:term ($(mkIdent modify) ..)))
   `(tactic|
     (simp (discharger := with_reducible wf_trivial) only
@@ -5263,82 +5258,19 @@ theorem snd_partition_not_eq_fst_partition [EquivBEq α] [LawfulHashable α]
     (m.partition (fun a b => ! p a b)).snd = (m.partition p).fst := by
   simp [← fst_partition_not_eq_snd_partition]
 
-private theorem mem_toList_fst_partition [EquivBEq α] [LawfulHashable α] (h : m.1.WF)
-    {p : (a : α) → β a → Bool} (x : (a : α) × β a) :
-    x ∈ (m.partition p).1.1.toList ↔ x ∈ m.1.toList ∧ p x.1 x.2 = true := by
-  simp only [partition, fold_eq_foldl_toList]
-  let f : Raw₀ α β × Raw₀ α β → List ((a : α) × β a) → Raw₀ α β × Raw₀ α β :=
-    fun pair l => List.foldl (fun a b => if p b.1 b.2 = true
-      then (a.1.insert b.1 b.2, a.2) else (a.1, a.2.insert b.1 b.2)) pair l
-  suffices ∀ (l : List ((a : α) × β a)) (m₁ m₂ : Raw₀ α β) (h₁ : m₁.1.WF) (h₂ : m₂.1.WF)
-    (h₃ : ∀ x ∈ l, m₁.contains x.1 = false)
-    (h₄ : l.Pairwise (fun a b => (a.1 == b.1) = false)),
-      x ∈ (f (m₁, m₂) l).1.1.toList ↔ (x ∈ l ∧ p x.1 x.2 = true) ∨ x ∈ m₁.1.toList by
-    specialize this m.1.toList emptyWithCapacity emptyWithCapacity Raw.WF.emptyWithCapacity₀
-      Raw.WF.emptyWithCapacity₀ (by simp ) (distinct_keys_toList _ h)
-    rw [this]
-    simp
-  intro l
-  induction l with
-  | nil =>
-    simp [f]
-  | cons hd tl ih =>
-    intro m₁ m₂ h₁ h₂ h₃ h₄
-    simp only [List.foldl_cons, List.mem_cons, f]
-    by_cases hhd : p hd.1 hd.2
-    · simp only [hhd, ↓reduceIte]
-      rw [ih _ _ (Raw.WF.insert₀ h₁) h₂]
-      · simp only [mem_toList_insert_of_contains_eq_false _ h₁ (h₃ hd (by simp)), or_and_right]
-        have : x = ⟨hd.1, hd.2⟩ ↔ x = hd ∧ p x.1 x.2 := by
-          simp only [iff_self_and]
-          intro h
-          rw [h]
-          simp [hhd]
-        conv => lhs; rw [this]
-        rw [← or_assoc, or_comm (a := x ∈ tl ∧ p x.fst x.snd = true)]
-      · intro x hx
-        simp only [contains_insert _ h₁, Bool.or_eq_false_iff]
-        constructor
-        · simp only [List.pairwise_cons] at h₄
-          apply h₄.1 x hx
-        · apply h₃ x (by simp [hx])
-      · simp only [List.pairwise_cons] at h₄
-        apply h₄.2
-    · simp only [hhd, Bool.false_eq_true, ↓reduceIte]
-      rw [ih _ _ h₁ (Raw.WF.insert₀ h₂)]
-      · have : ¬ (x = hd ∧ p x.fst x.snd = true) := by
-          intro h
-          obtain ⟨h, h'⟩ := h
-          rw [h] at h'
-          apply hhd
-          exact h'
-        simp [or_and_right, this]
-      · simp only [List.mem_cons, forall_eq_or_imp] at h₃
-        apply h₃.2
-      · simp only [List.pairwise_cons] at h₄
-        apply h₄.2
-
 theorem fst_partition_equiv_filter [EquivBEq α] [LawfulHashable α]
     {p : (a : α) → β a → Bool} (h : m.1.WF)  :
     (m.partition p).1.1.Equiv (m.filter p).1 := by
-  simp_to_model [partition, Equiv, filter] using List.Perm.refl
+  simp_to_model [Equiv, filter, partition] using List.Perm.refl
 
 theorem snd_partition_equiv_filter_not [EquivBEq α] [LawfulHashable α]
     {p : (a : α) → β a → Bool} (h : m.1.WF)  :
     (m.partition p).2.1.Equiv (m.filter (fun a b => ! p a b)).1 := by
-  rw [← fst_partition_not_eq_snd_partition]
-  apply fst_partition_equiv_filter _ h
+  simp_to_model [Equiv, filter, partition] using List.Perm.refl
 
 theorem size_partition [EquivBEq α] [LawfulHashable α] {p : (a : α) → β a → Bool} (h : m.1.WF) :
     (m.partition p).1.1.size + (m.partition p).2.1.size = m.1.size := by
-  simp [size_eq_of_equiv _ _ Raw.WF.fst_partition₀ (Raw.WF.filter₀ h)
-        (fst_partition_equiv_filter m h),
-    Raw.WF.filter₀ h, ← length_toList, List.Perm.length_eq (toList_filter m (f := p)),
-    ← List.countP_eq_length_filter,
-    size_eq_of_equiv _ _ Raw.WF.snd_partition₀ (Raw.WF.filter₀ h)
-        (snd_partition_equiv_filter_not m h),
-    List.Perm.length_eq (toList_filter m (f := fun a b => !p a b)), h,
-    List.length_eq_countP_add_countP (l := m.val.toList) (fun x => p x.1 x.2)]
+  simp_to_model [partition, size] using List.length_filter_add_length_filter_neg_eq_length
 
 end partition
 
